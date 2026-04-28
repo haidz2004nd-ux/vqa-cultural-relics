@@ -1,0 +1,108 @@
+# ============================================================
+# Configuration for VQA Cultural Relics System
+# ============================================================
+
+# Device Configuration
+device: "cuda"  # "cpu" or "cuda"
+gpu_id: 0
+
+# Data Paths
+data:
+  raw_dir: "data/raw"
+  processed_dir: "data/processed"
+  embeddings_dir: "data/embeddings"
+  knowledge_base: "data/knowledge_base.json"
+  labels_csv: "data/web_labels.csv"
+
+# Model Configuration
+models:
+  # CLIP for retrieval
+  clip:
+    model_name: "ViT-B/32"
+    device: "cuda"
+    
+  # FAISS Index
+  faiss:
+    index_path: "models/faiss_index.pkl"
+    metric: "cosine"  # "cosine" or "euclidean"
+    quantize: false
+    nlist: 100  # number of clusters
+    
+  # VQA Model
+  vqa:
+    model_type: "llava"  # "llava", "blip2", or "blip"
+    model_name: "liuhaotian/llava-v1.5-7b"
+    max_new_tokens: 100
+    temperature: 0.7
+    top_p: 0.9
+    
+  # Classification
+  classification:
+    backbone: "efficientnet_b0"  # "efficientnet_b0", "vit_b_16", "resnet50"
+    num_classes: 50
+    pretrained: true
+    
+  # XAI
+  xai:
+    method: "gradcam"  # "gradcam", "gradcam++", "integrated_gradients"
+    use_cuda: true
+
+# Training Configuration
+training:
+  epochs: 10
+  batch_size: 8
+  learning_rate: 1e-4
+  weight_decay: 1e-4
+  patience: 3
+  scheduler: "cosine"  # "cosine" or "linear"
+  
+# Data Loading
+dataloader:
+  num_workers: 4
+  pin_memory: true
+  shuffle: true
+  train_split: 0.8
+  val_split: 0.1
+  test_split: 0.1
+
+# Preprocessing
+preprocessing:
+  resize_size: 224
+  min_size: 100
+  max_size: 2000
+  normalize_mean: [0.485, 0.456, 0.406]
+  normalize_std: [0.229, 0.224, 0.225]
+  augmentation: true
+
+# VQA Questions
+questions:
+  diverse:
+    - "Đây là tranh hay tượng?"
+    - "Đây là chất liệu gì?"
+    - "Hiểu tạo của đối tượng ra sao?"
+    - "Đây là nhân vật nào?"
+    - "Bối cảnh này là gì?"
+    - "Thủ ấn trong hình là gì?"
+    - "Màu sắc chủ đạo của đối tượng là gì?"
+    - "Đối tượng có biểu hiện nghệ thuật đặc trưng nào?"
+    - "Phong cách này thuộc thời nào?"
+    - "Tìm các ảnh trong dữ liệu có cùng đối tượng"
+
+# Knowledge Base Settings
+knowledge:
+  enabled: true
+  use_rag: true
+  top_k: 3  # top-k relevant knowledge snippets
+
+# Output
+output:
+  save_visualizations: true
+  save_heatmaps: true
+  output_dir: "outputs"
+  report_format: "json"  # "json", "markdown", "csv"
+
+# Logging
+logging:
+  level: "INFO"
+  save_log: true
+  log_dir: "logs"

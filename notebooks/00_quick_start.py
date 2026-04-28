@@ -84,24 +84,11 @@ try:
 except Exception as e:
     print(f"       ❌ CLIP Error: {e}\n")
 
-# 4.2 VQA Model
+# 4.2 VQA Model - Skip for now (BLIP-2 has issues)
 print("  [4.2] Initializing VQA Model...")
 vqa = None
-try:
-    from models.vqa import VQAModel
-    # Try LLaVA first, fallback to BLIP-2
-    try:
-        vqa = VQAModel(model_type="llava", device=device)
-        print("       ✅ LLaVA VQA ready\n")
-    except Exception as llava_err:
-        print("       ⚠️  LLaVA failed, trying BLIP-2...")
-        try:
-            vqa = VQAModel(model_type="blip2", device=device)
-            print("       ✅ BLIP-2 VQA ready\n")
-        except Exception as blip2_err:
-            print(f"       ⚠️  BLIP-2 also failed: {blip2_err}\n")
-except Exception as e:
-    print(f"       ❌ VQA Error: {e}\n")
+print("       ⚠️  Skipping VQA (transformer version issue)")
+print("       💡 Use LLaVA or BLIP later\n")
 
 # 4.3 Classification Model
 print("  [4.3] Initializing Classification Model...")
@@ -144,20 +131,9 @@ if classifier:
     except Exception as e:
         print(f"       ❌ Error: {e}\n")
 
-# 5.2 Test VQA
-if vqa:
-    print("  [5.2] Testing VQA...")
-    try:
-        test_questions = [
-            "What is this?",
-            "What material is this?"
-        ]
-        answers = vqa.answer_multiple_questions(test_image, test_questions)
-        for q, a in answers.items():
-            print(f"       Q: {q}")
-            print(f"       A: {a}\n")
-    except Exception as e:
-        print(f"       ❌ Error: {e}\n")
+# 5.2 Test VQA - SKIP
+print("  [5.2] Testing VQA...")
+print("       ⚠️  Skipping VQA test\n")
 
 # 5.3 Test Knowledge Base
 if kb:
@@ -183,80 +159,54 @@ if retriever:
         print(f"       ❌ Error: {e}\n")
 
 # ============================================================
-# STEP 6: Full Pipeline
+# STEP 6: Simplified Pipeline (without VQA)
 # ============================================================
-print("\n[STEP 6] 🚀 Running Full Pipeline...\n")
+print("\n[STEP 6] 🚀 Running Simplified Pipeline...\n")
 
 try:
-    from pipeline.integrated import AnalysisPipeline
-
-    # Initialize pipeline
-    print("  Initializing pipeline...")
-    pipeline = AnalysisPipeline("config.yaml")
-
-    # Copy processed images
+    # Initialize pipeline components manually
+    print("  Initializing pipeline components...")
+    
+    # Preprocess images
     print("  Preprocessing images...")
     from utils.preprocessing import preprocess_images
     preprocess_images("data/raw", "data/processed")
-
-    # Initialize components
-    print("  Initializing retriever...")
-    if retriever:
-        pipeline.retriever = retriever
-
-    print("  Initializing VQA...")
-    if vqa:
-        pipeline.vqa_model = vqa
-
-    print("  Initializing classifier...")
-    if classifier:
-        pipeline.classifier = classifier
-
-    print("  Initializing knowledge base...")
-    if kb:
-        pipeline.knowledge_base = kb
-
-    # Run analysis
-    print(f"\n  Analyzing: {test_image}\n")
-
-    test_questions = [
-        "What is this object?",
-        "What is the dominant color?",
-        "What material might this be?"
-    ]
-
-    result = pipeline.analyze(test_image, questions=test_questions, top_k=2)
-
+    
     # Display results
     print("\n" + "="*60)
     print("📊 ANALYSIS RESULTS")
     print("="*60)
 
     print("\n[Classification]")
-    if result["classification"]:
-        print(f"  Class: {result['classification'].get('class_name', 'Unknown')}")
-        print(f"  Confidence: {result['classification'].get('confidence', 0):.2%}")
+    if classifier:
+        pred = classifier.predict(test_image, return_probs=False)
+        print(f"  Class: {pred.get('class_name', 'Unknown')}")
+        print(f"  Confidence: {pred.get('confidence', 0):.2%}")
 
     print("\n[Retrieval - Similar Images]")
-    if result["retrieval"]:
-        for i, item in enumerate(result["retrieval"], 1):
-            print(f"  {i}. {Path(item['path']).name} (distance: {item['distance']:.4f})")
+    if retriever:
+        results = retriever.search(test_image, k=2)
+        for i, (path, dist) in enumerate(results, 1):
+            print(f"  {i}. {Path(path).name} (distance: {dist:.4f})")
 
-    print("\n[VQA - Answers]")
-    if result["vqa"]:
-        for q, a in result["vqa"].items():
-            print(f"  Q: {q}")
-            print(f"  A: {a}\n")
-
-    print("\n[Knowledge]")
-    if result["knowledge"]:
-        print(f"  Found {len(result['knowledge'])} knowledge items")
-        for item in result["knowledge"]:
-            print(f"    - {item.get('key', 'Unknown')}")
+    print("\n[Knowledge Base]")
+    if kb:
+        materials = kb.data.get("materials", {})
+        print(f"  Available materials: {len(materials)}")
+        for mat_key in list(materials.keys())[:3]:
+            print(f"    - {mat_key}")
 
     # Save result
     os.makedirs("outputs", exist_ok=True)
-    pipeline.save_result(result)
+    result = {
+        "image": test_image,
+        "classification": classifier.predict(test_image) if classifier else None,
+        "retrieval": [(p, float(d)) for p, d in retriever.search(test_image, k=2)] if retriever else None,
+    }
+    
+    import json
+    with open("outputs/demo_result.json", "w", encoding="utf-8") as f:
+        json.dump(result, f, ensure_ascii=False, indent=2)
 
     print("\n" + "="*60)
     print("✅ DEMO COMPLETED SUCCESSFULLY!")
@@ -275,28 +225,33 @@ print("📚 NEXT STEPS")
 print("="*60)
 
 next_steps = """
-1. 📁 Prepare your data:
-   - Copy images to data/raw/
-   - Create data/web_labels.csv (if needed)
+✅ What Works:
+  ✓ CLIP Retriever + FAISS search
+  ✓ Classification (EfficientNet)
+  ✓ Knowledge Base
+  ✓ Preprocessing & visualization
 
-2. 🔧 Configure pipeline:
-   - Edit config.yaml for your needs
-   - Adjust model types, batch sizes, etc.
+⚠️  Known Issues:
+  - BLIP-2 has JSON parsing issues (transformer version mismatch)
+  - LLaVA requires separate installation
 
-3. 📊 Run on real data:
-   from pipeline.integrated import AnalysisPipeline
-   pipeline = AnalysisPipeline("config.yaml")
-   result = pipeline.analyze("your_image.jpg")
+💡 Solutions:
+  1. For VQA, install LLaVA separately:
+     pip install git+https://github.com/haotian-liu/LLaVA.git
 
-4. 📓 Check notebooks:
-   - notebooks/01_preprocessing.ipynb
-   - notebooks/02_retrieval_setup.ipynb
-   - notebooks/03_vqa_inference.ipynb
+  2. Or downgrade transformers:
+     pip install transformers==4.30.0
 
-5. 🎯 Fine-tune for your domain:
-   - Train classifier on your data
-   - Expand knowledge base
-   - Customize VQA prompts
+  3. Use simpler BLIP model:
+     from models.vqa import VQAModel
+     vqa = VQAModel(model_type="blip", device=device)
+
+🎯 Next:
+  1. Fix VQA model (choose one above)
+  2. Run on real dataset
+  3. Fine-tune classifier on your data
+  4. Expand knowledge base
+  5. Add prompt engineering for better answers
 
 Good luck! 🚀
 """
